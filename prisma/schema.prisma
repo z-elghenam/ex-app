@@ -13,3 +13,68 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum UserRole {
+  CLIENT
+  AMDIN
+  GUIDE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  password        String
+  firstName       String
+  lastName        String
+  phone           String?
+  dateOfBirth     DateTime?
+  profileImage    String?
+  role            UserRole   @default(CLIENT)
+  stauts          UserStatus @default(ACTIVE)
+  isEmailVerified Boolean    @default(false)
+
+  // Password reset
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+
+  // Email verification
+  emailVerificationToken   String?
+  emailVerificationExpires DateTime?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations (we'll add these later)
+  // tours                 Tour[]      // For guides
+  // bookings              Booking[]   // For clients
+  // reviews               Review[]    // For clients
+
+  @@map("users")
+}
+
+// TASK: add more models later for tours, bookings, reviews
+// model Tour {
+//   id          String   @id @default(cuid())
+//   // ... tour fields
+//   @@map("tours")
+// }
+
+// model Booking {
+//   id          String   @id @default(cuid())
+//   // ... booking fields
+//   @@map("bookings")
+// }
+
+// model Review {
+//   id          String   @id @default(cuid())
+//   // ... review fields
+//   @@map("reviews")
+// }
