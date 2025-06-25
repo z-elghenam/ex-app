@@ -161,4 +161,49 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+// @route GET /api/auth/me
+// @desc Get current user
+// @access Private
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.user.userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        profileImage: true,
+        role: true,
+        status: true,
+        isEmailVerified: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: { user },
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
+module.exports = { register, login, getUserProfile };
