@@ -4,6 +4,8 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
+const authRoutes = require("./routes/auth-routes");
+
 const app = express();
 
 // Security middleware
@@ -39,12 +41,12 @@ app.get("/health", (req, res) => {
 });
 
 // 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({
-    status: "error",
-    message: `Route ${req.originalUrl} not found`,
-  });
-});
+// app.use("/*", (req, res) => {
+//   res.status(404).json({
+//     status: "error",
+//     message: `Route ${req.originalUrl} not found`,
+//   });
+// });
 
 // Global error handler
 app.use((err, req, res, next) => {
