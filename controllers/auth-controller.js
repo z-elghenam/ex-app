@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("../generated/prisma/index");
 const { validateRegister, validateLogin } = require("../utils/validation");
+const { sendEmail } = require("../utils/email");
 
 const prisma = new PrismaClient();
 
@@ -29,6 +30,7 @@ const register = async (req, res) => {
         message: "User already exists with this email",
       });
     }
+
     // Hash password
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -50,6 +52,37 @@ const register = async (req, res) => {
         emailVerificationExpires,
       },
     });
+
+    // Send verification email
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify Your Email - Tour Booking",
+        html: `
+          <h1>Welcome to Tour Booking!</h1>
+          <p>Hi ${user.firstName},</p>
+          <p>Please verify your email by clicking the link below:</p>
+          <a href="${process.env.FRONTEND_URL}/api/auth/verify-email?token=${emailVerificationToken}">
+            Verify Email
+          </a>
+          <p>This link will expire in 24 hours.</p>
+        `,
+      });
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      // Don't fail registration if email fails
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || "7d" }
+    );
 
     res.status(201).json({
       status: "success",
