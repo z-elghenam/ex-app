@@ -89,6 +89,7 @@ const register = async (req, res) => {
       message:
         "User registered successfully. Please check your email for verification.",
       data: {
+        token,
         user: {
           id: user.id,
           email: user.email,
@@ -194,6 +195,59 @@ const login = async (req, res) => {
   }
 };
 
+// @route GET /api/auth/verify-email?token=*****
+// @desc Verify email with token
+// @access Public
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({
+        status: "error",
+        message: "Verification token is required",
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid or expired verification token",
+      });
+    }
+
+    // // Update user as verified
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    });
+
+    res.json({
+      status: "success",
+      message: "Email verified successfully",
+    });
+  } catch (error) {
+    console.error("Email verification error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
 // @route GET /api/auth/me
 // @desc Get current user
 // @access Private
@@ -239,4 +293,4 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getUserProfile };
+module.exports = { register, login, getUserProfile, verifyEmail };
