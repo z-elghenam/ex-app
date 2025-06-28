@@ -47,7 +47,7 @@ app.get("/health", (req, res) => {
 });
 
 // 404 handler
-// app.use("/*", (req, res) => {
+// app.use("*", (req, res) => {
 //   res.status(404).json({
 //     status: "error",
 //     message: `Route ${req.originalUrl} not found`,
