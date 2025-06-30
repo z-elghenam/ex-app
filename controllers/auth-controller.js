@@ -2,10 +2,29 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("../generated/prisma/index");
-const { validateRegister, validateLogin } = require("../utils/validation");
+const {
+  validateRegister,
+  validateLogin,
+  validateForgotPassword,
+  validateResetPassword,
+} = require("../utils/validation");
 const { sendEmail } = require("../utils/email");
 
 const prisma = new PrismaClient();
+
+const generateToken = (user) => {
+  const token = jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || "7d" },
+  );
+
+  return token;
+};
 
 const register = async (req, res) => {
   try {
@@ -74,15 +93,7 @@ const register = async (req, res) => {
     }
 
     // Generate JWT
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || "7d" }
-    );
+    const token = generateToken(user);
 
     res.status(201).json({
       status: "success",
@@ -109,9 +120,6 @@ const register = async (req, res) => {
   }
 };
 
-// @route POST /api/auth/login
-// @desc Login user
-// @access Public
 const login = async (req, res) => {
   try {
     const { error } = validateLogin(req.body);
@@ -160,15 +168,7 @@ const login = async (req, res) => {
     });
 
     // Generate JWT
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || "7d" }
-    );
+    const token = generateToken(user);
 
     res.json({
       status: "success",
@@ -195,9 +195,140 @@ const login = async (req, res) => {
   }
 };
 
-// @route GET /api/auth/verify-email?token=*****
-// @desc Verify email with token
-// @access Public
+const forgotPassword = async (req, res) => {
+  try {
+    const { error } = validateForgotPassword(req.body);
+
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error.details[0].message,
+      });
+    }
+
+    const { email } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        status: "error",
+        message: "No user found with this email",
+      });
+    }
+
+    // Generate reset token
+    const passwordResetToken = crypto.randomBytes(32).toString("hex");
+    const passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    //save to database
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        passwordResetToken,
+        passwordResetExpires,
+      },
+    });
+
+    // Send email
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Password Reset - Tour Booking",
+        html: `
+          <h1>Password Reset Request</h1>
+          <p>Hi ${user.firstName},</p>
+          <p>You requested a password reset. Click the link below to reset your password:</p>
+          <a href="${process.env.FRONTEND_URL}/api/auth/reset-password?token=${passwordResetToken}">
+            Reset Password
+          </a>
+          <p>This link will expire in 10 minutes.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        `,
+      });
+    } catch (emailError) {
+      console.log(emailError)
+      return res.status(500).json({
+        status: "error",
+        message: "Error sending reset email",
+      });
+    }
+
+    res.json({
+      status: "success",
+      message: "Password reset email sent",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { error } = validateResetPassword(req.body);
+
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error.details[0].message,
+      });
+    }
+
+    const { password } = req.body;
+    const { token } = req.query;
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid or expired reset token",
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update password and clear reset tokens
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+
+    res.json({
+      status: "success",
+      message: "Password reset successful",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
@@ -248,9 +379,6 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-// @route GET /api/auth/me
-// @desc Get current user
-// @access Private
 const getUserProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -293,4 +421,11 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getUserProfile, verifyEmail };
+module.exports = {
+  register,
+  login,
+  getUserProfile,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
+};
