@@ -85,10 +85,6 @@ const validateForgotPassword = (data) => {
 // Reset password validation
 const validateResetPassword = (data) => {
   const schema = Joi.object({
-    token: Joi.string().required().messages({
-      "any.required": "Reset token is required",
-    }),
-
     password: Joi.string()
       .min(8)
       .pattern(
