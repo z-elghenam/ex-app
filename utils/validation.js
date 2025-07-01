@@ -24,8 +24,8 @@ const validateRegister = (data) => {
       .min(8)
       .pattern(
         new RegExp(
-          "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]"
-        )
+          "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]",
+        ),
       )
       .required()
       .messages({
@@ -89,8 +89,8 @@ const validateResetPassword = (data) => {
       .min(8)
       .pattern(
         new RegExp(
-          "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]"
-        )
+          "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]",
+        ),
       )
       .required()
       .messages({
@@ -104,9 +104,39 @@ const validateResetPassword = (data) => {
   return schema.validate(data);
 };
 
+// Update profile validation
+const validateUpdateProfile = (data) => {
+  const schema = Joi.object({
+    firstName: Joi.string().min(2).max(50).optional().messages({
+      "string.min": "First name must be at least 2 characters",
+      "string.max": "First name cannot exceed 50 characters",
+    }),
+
+    lastName: Joi.string().min(2).max(50).optional().messages({
+      "string.min": "Last name must be at least 2 characters",
+      "string.max": "Last name cannot exceed 50 characters",
+    }),
+
+    phone: Joi.string()
+      .pattern(/^[+]?[1-9]?[0-9]{7,15}$/)
+      .optional()
+      .allow("")
+      .messages({
+        "string.pattern.base": "Please provide a valid phone number",
+      }),
+
+    dateOfBirth: Joi.date().max("now").optional().messages({
+      "date.max": "Date of birth cannot be in the future",
+    }),
+  });
+
+    return schema.validate(data);
+};
+
 module.exports = {
   validateRegister,
   validateLogin,
   validateForgotPassword,
   validateResetPassword,
+  validateUpdateProfile
 };
