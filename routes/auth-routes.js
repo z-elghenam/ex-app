@@ -7,6 +7,7 @@ const {
   forgotPassword,
   resetPassword,
   updateUserProfile,
+  updatePassword,
 } = require("../controllers/auth-controller");
 const { auth } = require("../middleware/auth");
 
@@ -42,9 +43,14 @@ router.post("/reset-password", resetPassword);
 // @access Private
 router.get("/me", auth, getUserProfile);
 
-// @route PUT /api/auth/profile
+// @route PATCH /api/auth/update-profile
 // @desc Update user profile
 // @access Private
-router.put("/update-profile", auth, updateUserProfile);
+router.patch("/update-profile", auth, updateUserProfile);
+
+// @route PATCH /api/auth/update-password
+// @desc Update user password
+// @access Private
+router.patch("/update-password", auth, updatePassword);
 
 module.exports = router;
