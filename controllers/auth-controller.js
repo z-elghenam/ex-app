@@ -7,7 +7,8 @@ const {
   validateLogin,
   validateForgotPassword,
   validateResetPassword,
-  validateUpdateProfile
+  validateUpdateProfile,
+  validateUpdatePassword,
 } = require("../utils/validation");
 const { sendEmail } = require("../utils/email");
 
@@ -379,6 +380,48 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.user.userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        profileImage: true,
+        role: true,
+        status: true,
+        isEmailVerified: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: { user },
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
 const updateUserProfile = async (req, res) => {
   try {
     const { error } = validateUpdateProfile(req.body);
@@ -429,41 +472,63 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
-const getUserProfile = async (req, res) => {
+const updatePassword = async (req, res) => {
   try {
+     const { password, currentPassword } = req.body;
+
+    const { error } = validateUpdatePassword({password});
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error.details[0].message,
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: {
         id: req.user.userId,
       },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        dateOfBirth: true,
-        profileImage: true,
-        role: true,
-        status: true,
-        isEmailVerified: true,
-        createdAt: true,
-        lastLoginAt: true,
-      },
     });
 
     if (!user) {
-      return res.status(404).json({
+      res.status(400).json({
         status: "error",
-        message: "User not found",
+        message: "no user found, please login again.",
       });
     }
 
+   console.log(currentPassword, user.password)
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      return res.status(400).json({
+        status: "error",
+        message: "password incorrect! if you forgot your password please go to forgot your password link and reset again",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    await prisma.user.update({
+      where: {
+        id: req.user.userId,
+      },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
     res.json({
       status: "success",
-      data: { user },
+      message: "password updated successfully",
     });
   } catch (error) {
-    console.error("Get user error:", error);
+    console.error("Update profile error:", error);
     res.status(500).json({
       status: "error",
       message: "Server error",
@@ -479,4 +544,5 @@ module.exports = {
   resetPassword,
   getUserProfile,
   updateUserProfile,
+  updatePassword,
 };
