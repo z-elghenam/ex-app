@@ -7,6 +7,7 @@ const {
   validateLogin,
   validateForgotPassword,
   validateResetPassword,
+  validateUpdateProfile
 } = require("../utils/validation");
 const { sendEmail } = require("../utils/email");
 
@@ -198,7 +199,6 @@ const login = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { error } = validateForgotPassword(req.body);
-
     if (error) {
       return res.status(400).json({
         status: "error",
@@ -253,7 +253,7 @@ const forgotPassword = async (req, res) => {
         `,
       });
     } catch (emailError) {
-      console.log(emailError)
+      console.log(emailError);
       return res.status(500).json({
         status: "error",
         message: "Error sending reset email",
@@ -379,6 +379,56 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+const updateUserProfile = async (req, res) => {
+  try {
+    const { error } = validateUpdateProfile(req.body);
+    if (error) {
+      return res.status(400).json({
+        status: "error",
+        message: error.details[0].message,
+      });
+    }
+
+    const { firstName, lastName, phone, dateOfBirth } = req.body;
+
+    const updateData = {};
+    if (firstName) updateData.firstName = firstName;
+    if (lastName) updateData.lastName = lastName;
+    if (phone) updateData.phone = phone;
+    if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: req.user.userId,
+      },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        profileImage: true,
+        role: true,
+        isEmailVerified: true,
+      },
+    });
+
+    res.json({
+      status: "success",
+      message: "Profile updated successfully",
+      data: { user: updatedUser },
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Server error",
+    });
+  }
+};
+
 const getUserProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -424,8 +474,9 @@ const getUserProfile = async (req, res) => {
 module.exports = {
   register,
   login,
-  getUserProfile,
   verifyEmail,
   forgotPassword,
   resetPassword,
+  getUserProfile,
+  updateUserProfile,
 };
