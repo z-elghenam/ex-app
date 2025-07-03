@@ -11,6 +11,7 @@ const {
   validateUpdatePassword,
 } = require("../utils/validation");
 const { sendEmail } = require("../utils/email");
+const { uploadToCloudinary } = require("../utils/cloudinary");
 
 const prisma = new PrismaClient();
 
@@ -22,7 +23,7 @@ const generateToken = (user) => {
       role: user.role,
     },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE || "7d" },
+    { expiresIn: process.env.JWT_EXPIRE || "7d" }
   );
 
   return token;
@@ -41,6 +42,7 @@ const register = async (req, res) => {
     const { email, password, firstName, lastName, phone, dateOfBirth } =
       req.body;
 
+    // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -50,6 +52,22 @@ const register = async (req, res) => {
         status: "error",
         message: "User already exists with this email",
       });
+    }
+
+    // Handle image upload
+    let profileImageUrl = null;
+    if (req.file) {
+      try {
+        profileImageUrl = await uploadToCloudinary(
+          req.file.buffer,
+          "profile-images"
+        );
+      } catch (uploadError) {
+        return res.status(400).json({
+          status: "error",
+          message: "Error uploading profile image",
+        });
+      }
     }
 
     // Hash password
@@ -69,6 +87,7 @@ const register = async (req, res) => {
         lastName,
         phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        profileImage: profileImageUrl,
         emailVerificationToken,
         emailVerificationExpires,
       },
@@ -91,7 +110,6 @@ const register = async (req, res) => {
       });
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
-      // Don't fail registration if email fails
     }
 
     // Generate JWT
@@ -109,6 +127,7 @@ const register = async (req, res) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          profileImage: user.profileImage,
           isEmailVerified: user.isEmailVerified,
         },
       },
@@ -440,6 +459,22 @@ const updateUserProfile = async (req, res) => {
     if (phone) updateData.phone = phone;
     if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
 
+    // Handle image upload
+    if (req.file) {
+      try {
+        const imageUrl = await uploadToCloudinary(
+          req.file.buffer,
+          "profile-images"
+        );
+        updateData.profileImage = imageUrl;
+      } catch (uploadError) {
+        return res.status(400).json({
+          status: "error",
+          message: "Error uploading profile image",
+        });
+      }
+    }
+
     const updatedUser = await prisma.user.update({
       where: {
         id: req.user.userId,
@@ -474,9 +509,9 @@ const updateUserProfile = async (req, res) => {
 
 const updatePassword = async (req, res) => {
   try {
-     const { password, currentPassword } = req.body;
+    const { password, currentPassword } = req.body;
 
-    const { error } = validateUpdatePassword({password});
+    const { error } = validateUpdatePassword({ password });
     if (error) {
       return res.status(400).json({
         status: "error",
@@ -497,18 +532,19 @@ const updatePassword = async (req, res) => {
       });
     }
 
-   console.log(currentPassword, user.password)
+    console.log(currentPassword, user.password);
 
     // Check password
     const isPasswordValid = await bcrypt.compare(
       currentPassword,
-      user.password,
+      user.password
     );
 
     if (!isPasswordValid) {
       return res.status(400).json({
         status: "error",
-        message: "password incorrect! if you forgot your password please go to forgot your password link and reset again",
+        message:
+          "password incorrect! if you forgot your password please go to forgot your password link and reset again",
       });
     }
 
